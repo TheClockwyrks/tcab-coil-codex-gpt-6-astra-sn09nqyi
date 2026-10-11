@@ -1,99 +1,56 @@
-# Coil — starter project
+# Coil
 
-This repository is the starting point for building **Coil**, the game the
-specification under `specs/` describes. Read `specs/overview.md` first; it says
-how the rest of the specification is organized.
+A complete browser arcade game: steer a luminous pixel serpent around a bordered grid, eat amber pellets, and route efficiently to keep a scoring combo alive. The multiplier climbs to x5, then drops to x1 when its 3.5-second window expires. Walls and your own body end the round. Your best score lasts for the session.
 
-The project is already wired up. It builds on the **Simple 2D** engine, which is
-installed as an ordinary dependency and documents itself under `engine/` — read
-that alongside the specs. What is missing is the game, and the art and sound it
-plays.
+## Run
 
-## What you own
+Requires Node.js 22.12+ and npm.
 
-**`src/game.ts`, and any new files you add beside it.**
+```sh
+npm ci
+npm run dev
+```
 
-Start by declaring and exporting `CoilState`, the game's whole state, and
-`CoilDebugApi`, the debug and automation surface `specs/instrumentation.md`
-specifies. The stub in `src/game.ts` is written against both names, so the
-project does not compile until they exist — a fresh workspace failing
-`npm run typecheck` is the starting point, not a broken seed.
+Open the local URL printed by Vite. No backend, credentials, or network services are needed to play.
 
-`src/game.ts` then exports `game`, a `Game<CoilState, CoilDebugApi>`: three
-functions over that state. `initialize` builds the state and the debug surface
-once and returns them together as `[state, debug]`; `update` takes the current
-state as a read-only view (`DeepReadonly<CoilState>`, from `ts-essentials`) and
-returns the next state, advanced against the frame's delta time in seconds; and
-`render` is handed that next state, read-only again, and draws it. The engine
-holds the state by value and replaces it with whatever `update` returns, so a
-frame builds the next state from the current one rather than writing into it,
-and the type is what guarantees that rendering changes nothing. All three
-currently throw `"not implemented"`. Implement them.
+```sh
+npm run build
+npm run preview
+```
 
-**The fixed tick is yours.** The engine hands `update` the real elapsed seconds
-of each frame and imposes no timestep of its own. Coil advances in whole ticks
-of `TICK_SECONDS`, so `update` accumulates those seconds and resolves each whole
-tick in the order `specs/movement.md` fixes, carrying the remainder. Drawing
-advances nothing.
+`dist/` is the complete static site. Serve it at a host's root or under a subdirectory. Asset URLs are page-relative. `public/assets` is a repository symlink to the committed `assets/` directory; Vite copies those files into the production bundle. Preserve symlinks when checking out the source.
 
-**The assets under `assets/`.** That directory does not exist yet. Coil ships no
-art and no sound: the snake's sprite set and the game's cues and music are
-produced during this build with the generation binaries on the `PATH`, committed
-here, and bundled. `specs/assets.md` states what to produce, which binary makes
-each file, and the bar each is held to; `src/constants.ts` names the path each
-lands at. Load them through the engine's asset loader and bind the cues to its
-cue bus.
+## Controls
 
-The debug surface is a required deliverable. The engine returns it from
-`engine.debug` exactly as `initialize` handed it over, and that is how the game
-is driven from code, so it is present and exactly as `specs/instrumentation.md`
-specifies. Because nothing holds a writable state, its operations are written in
-the shape of `update`: a pose takes the current state and returns the next, and a
-caller applies it through `engine.apply((s) => debug.setScore(s, 120))`; a
-reading takes the state and returns what it read, as `debug.snapshot(engine.state)`.
-Nothing is published to the page.
+| Action | Keys |
+| --- | --- |
+| Steer / navigate menus | Arrow keys or WASD |
+| Confirm | Enter or Space |
+| Back / pause | Escape |
+| Pause / resume | P |
+| Mute / unmute | M |
+| Debug overlay | Backtick |
 
-Tests you write belong beside your sources as `src/**/*.test.ts`. `npm test` runs
-them in process, with coverage over `src/`. The engine's documentation carries a
-complete worked example of testing a game this way.
+Menus also accept mouse and touch. Touchscreen devices receive the engine's directional controls. Sound unlocks after the first interaction. The pause menu freezes movement, combo time, and bite animation while the music continues.
 
-## What you must not edit
+## Assets
 
-- **`src/main.ts`** — the fixed entry point. It creates the engine over the
-  page's canvas, binds `game` to it, and runs.
-- **`src/constants.ts`** — every figure the specification fixes: the stage and
-  board geometry, the starting chain, the tick and the turn buffer, the combo and
-  its window, the mode's copy, the screen copy, the action names and their
-  bindings, the cue names, and the paths the produced files land at. Read from
-  it.
-- **`index.html`** — the page and the canvas the engine fits the stage into.
-- **The toolchain** — `package.json`, `tsconfig.json`, `vite.config.ts`,
-  `vitest.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`,
-  and `.gitignore`.
-- **`.vendor/`** — the vendored engine.
+All seven transparent 32×32 snake sprites and all four WAV files are original, committed assets. Body, corner and tail were rendered with `draw`; the four head poses with `draw-sheet`; the event cues with `sfx-synth`; and the eight-bar music loop with `music`. `tools/produce-assets.py` preserves their one-time authorship recipe. It requires those creation tools, but **neither building nor playing runs it**. The game loads the finished PNG and WAV files through Simple 2D's asset loader and cue bus.
 
-Add dependencies to `package.json` if you genuinely need them, and commit the
-`package-lock.json` — the build is installed with `npm ci`. Leave the existing
-entries alone.
+The board, menus, amber pellets and deterministic eat sparks are canvas drawings. The snake always uses its produced sprites, with native-size quarter-turn rotations and nearest-neighbor sampling.
 
-## Commands
+## Verification and structure
 
-- `npm run dev` — serves the game with hot reload.
-- `npm run build` — type-checks, then emits the static site into `dist/`.
-- `npm run preview` — serves `dist/` for a final check.
-- `npm run typecheck` — `tsc --noEmit`.
-- `npm run lint` — ESLint.
-- `npm run format` — Prettier, in check mode.
-- `npm test` — Vitest over `src/**/*.test.ts`, with coverage.
+```sh
+npm run typecheck
+npm run lint
+npm run format
+npm test
+node tools/check-browser.mjs # after npm run build
+```
 
-## Before you finish
+The tests run the actual game through Simple 2D, using a real canvas and PNG decoder with scripted clocks. Browser audio transport is adapted in the Node test host. They cover timing, turn buffering, scoring, collisions, full-board wins, debug poses, audio events, menus, touch, and rendering.
 
-- `npm run build` produces `dist/` with `index.html` at its root, and that
-  directory runs as-is on any static host, at its root and under a sub-path.
-- The produced files under `assets/` are committed, and the build bundles them
-  rather than regenerating them.
-- `npm run typecheck`, `npm run lint`, `npm run format`, and `npm test` all pass.
-  The same four commands are run over the repository you leave behind.
-- **Replace this file** with the `README.md` `specs/overview.md` asks the
-  finished build to ship: what the game is, how to install it, how to run it in
-  development, how to produce the production build, and the controls.
+`src/core.ts` contains the render-free simulation; `src/game.ts` owns initialization and frame transitions; `src/debug.ts` implements the automation surface; `src/menu.ts` shares hit-region geometry; and `src/render.ts` draws the game. The engine exclusively owns input, frame delivery, viewport fitting, asset loading, audio and the diagnostic overlay. Automation obtains the debug API through `engine.debug`; no game object is installed on the page.
+
+The player-facing showcase is in `showcase/`. With the dev server running, `node tools/capture-showcase.mjs` recaptures its screenshots and five-second engine drawing replay through a private browser harness. Playwright launches with `--no-sandbox` for container compatibility.
